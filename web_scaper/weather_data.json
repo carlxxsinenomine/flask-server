@@ -1,0 +1,155 @@
+{
+  "scraped_at": "2025-11-18T12:47:06.240105",
+  "page_title": "PANaHON",
+  "url": "https://www.panahon.gov.ph/",
+  "notification_count": "-",
+  "headings": [
+    {
+      "level": 1,
+      "text": "Welcome to PANaHON"
+    },
+    {
+      "level": 1,
+      "text": "Sign in to your account"
+    },
+    {
+      "level": 1,
+      "text": "About PANaHON"
+    },
+    {
+      "level": 1,
+      "text": ""
+    },
+    {
+      "level": 3,
+      "text": "Synoptic Station"
+    },
+    {
+      "level": 3,
+      "text": "Weather Station"
+    },
+    {
+      "level": 3,
+      "text": "Satellite"
+    },
+    {
+      "level": 3,
+      "text": "Radar"
+    },
+    {
+      "level": 3,
+      "text": "Lightning Data"
+    },
+    {
+      "level": 3,
+      "text": "Weather Prediction"
+    },
+    {
+      "level": 3,
+      "text": "Measuring / Drawing Tool"
+    },
+    {
+      "level": 3,
+      "text": "Weather Camera"
+    },
+    {
+      "level": 3,
+      "text": "Coastal Radar"
+    },
+    {
+      "level": 3,
+      "text": "Storm Surge"
+    }
+  ],
+  "weather_sections": [
+    {
+      "class": [
+        "group",
+        "weather_camera-control-layer"
+      ],
+      "text": "Weather CameraView in Grid Display"
+    }
+  ],
+  "links": [
+    {
+      "text": "PANaHON",
+      "url": "/"
+    },
+    {
+      "text": "Synoptic Station",
+      "url": "#"
+    },
+    {
+      "text": "Observed Weather",
+      "url": "#"
+    },
+    {
+      "text": "3hr Rainfall (mm)",
+      "url": "#"
+    },
+    {
+      "text": "Temperature (°C)",
+      "url": "#"
+    },
+    {
+      "text": "Humidity (%)",
+      "url": "#"
+    },
+    {
+      "text": "Pressure (hPa)",
+      "url": "#"
+    },
+    {
+      "text": "Wind Speed (m/s)",
+      "url": "#"
+    },
+    {
+      "text": "Wind Direction (°)",
+      "url": "#"
+    },
+    {
+      "text": "Automatic WeatherStation",
+      "url": "#"
+    },
+    {
+      "text": "Rainfall (mm/hr)",
+      "url": "#"
+    },
+    {
+      "text": "Temperature (°C)",
+      "url": "#"
+    },
+    {
+      "text": "Heat Index (°C)",
+      "url": "#"
+    },
+    {
+      "text": "Humidity (%)",
+      "url": "#"
+    },
+    {
+      "text": "Pressure",
+      "url": "#"
+    },
+    {
+      "text": "Wind Speed (m/s)",
+      "url": "#"
+    },
+    {
+      "text": "Wind Direction (°)",
+      "url": "#"
+    },
+    {
+      "text": "Wind Deviation",
+      "url": "#"
+    },
+    {
+      "text": "Satellite Imagery",
+      "url": "#"
+    },
+    {
+      "text": "HIMAWARI-9 IR1",
+      "url": "#"
+    }
+  ]
+}
