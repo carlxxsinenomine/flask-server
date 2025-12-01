@@ -1,3 +1,6 @@
+import time
+
+import schedule
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
 from flask_cors import CORS
@@ -145,14 +148,16 @@ def fence_activation():
     except Exception as e:
         print(f"Error in fence_activation: {str(e)}")
 
-
-# Run fence activation on startup
-# fence_activation()
-
 if __name__ == '__main__':
-    try:
-        app.run(port=int(os.getenv("API_PORT", 5000)))
-    finally:
-        # Ensure the MongoDB connection is closed properly
-        client.close()
-        print("MongoDB connection closed")
+    print("Worker started - Running fence activation every hour")
+
+    # Schedule the job every hour
+    schedule.every(1).hours.do(fence_activation)
+
+    # Run immediately on startup
+    fence_activation()
+
+    # Keep the worker running
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check every minute

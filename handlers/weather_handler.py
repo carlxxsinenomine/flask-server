@@ -15,7 +15,6 @@ from web_scaper.PanahonScraper import PanahonScraper
 load_dotenv()
 
 WEATHER_API = os.getenv("WEATHER_API")
-WINDY_API = os.getenv("WINDY_API")
 
 class WeatherHandler:
     def __init__(self):
