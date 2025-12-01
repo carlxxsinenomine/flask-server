@@ -6,3 +6,4 @@ pymongo
 flask-cors
 python-dotenv
 schedule
+sendgrid
