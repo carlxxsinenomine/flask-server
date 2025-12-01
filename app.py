@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
-
+from threading import Thread
+import traceback
 import os
 # RESTful API example
 # @app.route('/articles', methods=['GET'])          # Get all articles
@@ -63,20 +64,54 @@ def save_tracking():
     return jsonify({"success": True, "id": str(result.inserted_id)})
 
 
+def send_email_async(fence_name):
+    """Send email in background thread"""
+    try:
+        email_manager = EmailManager()
+        email_manager.create_message(f"You're inside {fence_name}")
+        email_manager.send_alert_email()
+        print(f"✓ Email sent successfully for {fence_name}")
+    except Exception as e:
+        print(f"✗ Email sending failed: {e}")
+        traceback.print_exc()
+
+
 @app.route('/log-alert-event', methods=['POST'])
 def log_alert_event():
-    email_manager = EmailManager()
-    data = request.json
+    try:
+        data = request.json
 
-    email_manager.create_message(f"You're inside {data['fenceName']}")
-    email_manager.send_alert_email()
-    document = {
-        "user_id": data['userId'],
-        "time_stamp": data['timestamp'],
-        "fence_name": data['fenceName']
-    }
-    result = event_log.insert_one(document)
-    return jsonify({"success": True, "id": str(result)})
+        # Validate input
+        if not data or 'userId' not in data or 'fenceName' not in data:
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+
+        # Save to database first
+        document = {
+            "user_id": data['userId'],
+            "time_stamp": data.get('timestamp'),
+            "fence_name": data['fenceName']
+        }
+        result = event_log.insert_one(document)
+
+        # Send email in background thread (non-blocking)
+        email_thread = Thread(
+            target=send_email_async,
+            args=(data['fenceName'],),
+            daemon=True  # Thread will close when main program exits
+        )
+        email_thread.start()
+
+        # Return immediately without waiting for email
+        return jsonify({
+            "success": True,
+            "id": str(result.inserted_id),
+            "message": "Alert logged, email being sent"
+        }), 200
+
+    except Exception as e:
+        print(f"Error in log_alert_event: {e}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/health', methods=['GET'])
