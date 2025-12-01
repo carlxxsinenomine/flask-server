@@ -1,37 +1,18 @@
-import time
-
-import schedule
-from flask import Flask, request, jsonify
 from pymongo import MongoClient
-from flask_cors import CORS
 from dotenv import load_dotenv
-
-from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
-
 import os
+import time
+import schedule
 
-# RESTful API example
-# @app.route('/articles', methods=['GET'])          # Get all articles
-# @app.route('/articles', methods=['POST'])         # Create new article
-# @app.route('/articles/<id>', methods=['GET'])     # Get specific article
-# @app.route('/articles/<id>', methods=['PUT'])     # Update entire article
-# @app.route('/articles/<id>', methods=['PATCH'])   # Update part of article
-# @app.route('/articles/<id>', methods=['DELETE'])  # Delete article
 load_dotenv()
 
-app = Flask(__name__)
-weather_info = WeatherHandler()
-
-CORS(app)  # Enable CORS for browser requests
-
-# Fixed MongoDB connection with TLS certificate validation bypass
+# MongoDB connection
 try:
     client = MongoClient(
         os.getenv("MONGODB_URI"),
-        tlsAllowInvalidCertificates=True  # This fixes the certificate parsing error
+        tlsAllowInvalidCertificates=True
     )
-    # Test the connection
     client.admin.command('ping')
     print("✓ MongoDB connection successful!")
 except Exception as e:
@@ -39,37 +20,8 @@ except Exception as e:
     raise
 
 geo_db = client[os.getenv("MONGODB_DATABASE")]
-user_trail = geo_db[os.getenv("MONGODB_COLLECTION")]
-event_log = geo_db[os.getenv("EVENT_LOG")]
 drawn_shapes = geo_db.shapes
-
-
-@app.route('/save-tracking', methods=['POST'])
-def save_tracking():
-    data = request.json
-    document = {
-        "type": data['type'],
-        "properties": data['properties'],
-        "geometry": data['geometry']
-    }
-    result = user_trail.insert_one(document)
-    return jsonify({"success": True, "id": str(result.inserted_id)})
-
-
-@app.route('/log-alert-event', methods=['POST'])
-def log_alert_event():
-    email_manager = EmailManager()
-    email_manager.create_message("Putanginamo Labas")
-    email_manager.send_alert_email()
-
-    data = request.json
-
-    document = {
-        "user_id": data['userId'],
-        "time_stamp": data['timestamp']
-    }
-    result = event_log.insert_one(document)
-    return jsonify({"success": True, "id": str(result)})
+weather_info = WeatherHandler()
 
 
 def get_coordinates_info(lat, lng):
@@ -95,6 +47,7 @@ def check_weather_advisory(lat, lng):
 def check_precipitation(lat, lng):
     current_weather = weather_info.get_current_forecast(lat, lng)
     return {'weather_condition': current_weather['condition']['text'], 'precipitation': current_weather['precip_mm']}
+
 
 
 def fence_activation():
@@ -148,11 +101,12 @@ def fence_activation():
     except Exception as e:
         print(f"Error in fence_activation: {str(e)}")
 
-if __name__ == '__main__':
-    print("Worker started - Running fence activation every hour")
 
-    # Schedule the job every hour
-    schedule.every(1).hours.do(fence_activation)
+if __name__ == '__main__':
+    print("Worker started - Running fence activation every minute (TESTING MODE)")
+
+    # Schedule the job every minute for testing
+    schedule.every(1).minutes.do(fence_activation)
 
     # Run immediately on startup
     fence_activation()
@@ -160,4 +114,4 @@ if __name__ == '__main__':
     # Keep the worker running
     while True:
         schedule.run_pending()
-        time.sleep(60)  # Check every minute
+        time.sleep(10)  # Check every 10 seconds
