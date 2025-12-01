@@ -39,6 +39,17 @@ user_trail = geo_db[os.getenv("MONGODB_COLLECTION")]
 event_log = geo_db[os.getenv("EVENT_LOG")]
 drawn_shapes = geo_db.shapes
 
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "message": "Flask Geofencing API",
+        "status": "running",
+        "endpoints": [
+            "/save-tracking (POST)",
+            "/log-alert-event (POST)",
+            "/health (GET)"
+        ]
+    })
 
 @app.route('/save-tracking', methods=['POST'])
 def save_tracking():
