@@ -14,7 +14,7 @@ class EmailManager:
         # Email settings
         self.__sender_email = os.getenv("SENDER_EMAIL")
         self.__sender_name = os.getenv("SENDER_NAME", "Geofence Alert System")
-        self.__receiver_email = "carljohannesllarenas.munoz24@bicol-u.edu.ph"
+        self.__receiver_email = "10johannesmunoz@gmail.com"
         self.__message_text = None
 
         # Validate credentials

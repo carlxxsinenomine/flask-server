@@ -119,6 +119,8 @@ def log_alert_event():
         fence_name = data['fenceName']
         timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
 
+        print(f"📍 Alert received: user={user_id}, fence={fence_name}")
+
         # Save to database first
         document = {
             "user_id": user_id,
@@ -127,8 +129,11 @@ def log_alert_event():
         }
         result = event_log.insert_one(document)
 
+        # Get cooldown setting (set to 0 to disable for testing)
+        cooldown_minutes = int(os.getenv("EMAIL_COOLDOWN_MINUTES", 5))
+
         # Check if we should send email (cooldown check)
-        if should_send_email(user_id, fence_name):
+        if cooldown_minutes == 0 or should_send_email(user_id, fence_name, cooldown_minutes):
             # Send email in background thread (non-blocking)
             email_thread = Thread(
                 target=send_email_async,
@@ -137,6 +142,7 @@ def log_alert_event():
             )
             email_thread.start()
             message = "Alert logged, email being sent"
+            print(f"📧 Starting email thread for {user_id} in {fence_name}")
         else:
             message = "Alert logged, email skipped (cooldown active)"
             print(f"⏸ Email skipped for {user_id} in {fence_name} (cooldown)")
