@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
 from threading import Thread
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import traceback
 import os
 
@@ -67,7 +67,7 @@ def send_email_async(fence_name, user_id):
         email_manager = EmailManager()
         email_manager.create_message(
             f"Alert: User {user_id} has entered the geofence '{fence_name}'.\n\n"
-            f"Time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+            f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
             f"Fence: {fence_name}"
         )
 
@@ -89,7 +89,7 @@ def should_send_email(user_id, fence_name, cooldown_minutes=5):
     """
     try:
         # Look for recent alerts from this user in this fence
-        cooldown_time = datetime.utcnow() - timedelta(minutes=cooldown_minutes)
+        cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
 
         recent_alert = event_log.find_one({
             "user_id": user_id,
@@ -117,7 +117,7 @@ def log_alert_event():
 
         user_id = data['userId']
         fence_name = data['fenceName']
-        timestamp = data.get('timestamp', datetime.utcnow().isoformat())
+        timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
 
         # Save to database first
         document = {
@@ -163,7 +163,7 @@ def health():
         return jsonify({
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }), 200
     except Exception as e:
         return jsonify({
