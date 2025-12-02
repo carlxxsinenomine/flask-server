@@ -1,3 +1,4 @@
+mailtrap
 selenium
 webdriver-manager
 requests
