@@ -1,58 +1,54 @@
 import os
-from email.mime.text import MIMEText
 from dotenv import load_dotenv
-import smtplib
+import mailtrap as mt
 
 load_dotenv()
 
 
 class EmailManager:
     def __init__(self):
-        # Mailtrap SMTP settings
-        self.__session = os.getenv("MAILTRAP_HOST", "live.smtp.mailtrap.io")
-        self.__port = int(os.getenv("MAILTRAP_PORT", 587))
-        self.__username = os.getenv("MAILTRAP_USERNAME")
-        self.__password = os.getenv("MAILTRAP_PASSWORD")
+        # Mailtrap API settings
+        self.__api_token = os.getenv("MAILTRAP_API_TOKEN")
 
         # Email settings
-        self.__sender_email = os.getenv("SENDER_EMAIL", "noreply@demomailtrap.co")
+        self.__sender_email = os.getenv("SENDER_EMAIL", "hello@demomailtrap.com")
+        self.__sender_name = os.getenv("SENDER_NAME", "Geofence Alert System")
         self.__receiver_email = "carljohannesllarenas.munoz24@bicol-u.edu.ph"
-        self.__message = None
+        self.__message_text = None
 
         # Validate credentials
-        if not self.__username or not self.__password:
-            raise ValueError("MAILTRAP_USERNAME and MAILTRAP_PASSWORD must be set in environment variables")
+        if not self.__api_token:
+            raise ValueError("MAILTRAP_API_TOKEN must be set in environment variables")
+
+        # Initialize Mailtrap client
+        self.__client = mt.MailtrapClient(token=self.__api_token)
 
     def create_message(self, text):
         """Create email message"""
-        self.__message = MIMEText(text, "plain")
-        self.__message["Subject"] = "🚨 Geofence Alert"
-        self.__message["From"] = self.__sender_email
-        self.__message["To"] = self.__receiver_email
+        self.__message_text = text
 
     def send_alert_email(self):
-        """Send email using Mailtrap SMTP"""
-        if not self.__message:
+        """Send email using Mailtrap API"""
+        if not self.__message_text:
             raise ValueError("No message created. Call create_message() first.")
 
         try:
-            with smtplib.SMTP(self.__session, self.__port, timeout=10) as server:
-                server.starttls()
-                server.login(self.__username, self.__password)
-                server.sendmail(
-                    self.__sender_email,
-                    self.__receiver_email,
-                    self.__message.as_string()
-                )
-                print(f"✓ Email sent successfully to {self.__receiver_email}")
-                return True
+            # Create mail object
+            mail = mt.Mail(
+                sender=mt.Address(email=self.__sender_email, name=self.__sender_name),
+                to=[mt.Address(email=self.__receiver_email)],
+                subject="🚨 Geofence Alert",
+                text=self.__message_text,
+                category="Geofence Alerts"
+            )
 
-        except smtplib.SMTPAuthenticationError as e:
-            print(f"✗ SMTP Authentication failed: {e}")
-            return False
-        except smtplib.SMTPException as e:
-            print(f"✗ SMTP error: {e}")
-            return False
+            # Send email
+            response = self.__client.send(mail)
+
+            print(f"✓ Email sent successfully to {self.__receiver_email}")
+            print(f"Response: {response}")
+            return True
+
         except Exception as e:
             print(f"✗ Failed to send email: {type(e).__name__}: {e}")
             return False
