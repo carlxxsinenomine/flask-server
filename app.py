@@ -3,12 +3,21 @@ from pymongo import MongoClient
 from flask_cors import CORS
 from dotenv import load_dotenv
 
-from handlers.email_handler import EmailManager
+# from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
-from threading import Thread
+# from threading import Thread
 from datetime import datetime, timedelta, timezone
 import traceback
 import os
+import mailtrap as mt
+
+token = os.getenv("MAILTRAP_API_TOKEN")
+sender = os.getenv("SENDER_EMAIL", "hello@demomailtrap.co")
+
+print(f"Token exists: {bool(token)}")
+print(f"Token: {token}")
+print(f"Sender: {sender}")
+
 
 load_dotenv()
 
@@ -61,49 +70,49 @@ def save_tracking():
     return jsonify({"success": True, "id": str(result.inserted_id)})
 
 
-def send_email_async(fence_name, user_id):
-    """Send email in background thread"""
-    try:
-        email_manager = EmailManager()
-        email_manager.create_message(
-            f"Alert: User {user_id} has entered the geofence '{fence_name}'.\n\n"
-            f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
-            f"Fence: {fence_name}"
-        )
+# def send_email_async(fence_name, user_id):
+#     """Send email in background thread"""
+#     try:
+#         email_manager = EmailManager()
+#         email_manager.create_message(
+#             f"Alert: User {user_id} has entered the geofence '{fence_name}'.\n\n"
+#             f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+#             f"Fence: {fence_name}"
+#         )
+#
+#         success = email_manager.send_alert_email()
+#         if success:
+#             print(f"✓ Email sent successfully for fence '{fence_name}'")
+#         else:
+#             print(f"✗ Email failed to send for fence '{fence_name}'")
+#
+#     except Exception as e:
+#         print(f"✗ Email sending failed: {e}")
+#         traceback.print_exc()
 
-        success = email_manager.send_alert_email()
-        if success:
-            print(f"✓ Email sent successfully for fence '{fence_name}'")
-        else:
-            print(f"✗ Email failed to send for fence '{fence_name}'")
 
-    except Exception as e:
-        print(f"✗ Email sending failed: {e}")
-        traceback.print_exc()
+# def should_send_email(user_id, fence_name, cooldown_minutes=5):
+#     """
+#     Check if we should send an email based on cooldown period.
+#     Prevents spam if user enters same fence multiple times quickly.
+#     """
+#     try:
+#         # Look for recent alerts from this user in this fence
+#         cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
+#
+#         recent_alert = event_log.find_one({
+#             "user_id": user_id,
+#             "fence_name": fence_name,
+#             "time_stamp": {"$gte": cooldown_time.isoformat()}
+#         })
+#
+#         # If no recent alert found, we should send email
+#         return recent_alert is None
 
-
-def should_send_email(user_id, fence_name, cooldown_minutes=5):
-    """
-    Check if we should send an email based on cooldown period.
-    Prevents spam if user enters same fence multiple times quickly.
-    """
-    try:
-        # Look for recent alerts from this user in this fence
-        cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
-
-        recent_alert = event_log.find_one({
-            "user_id": user_id,
-            "fence_name": fence_name,
-            "time_stamp": {"$gte": cooldown_time.isoformat()}
-        })
-
-        # If no recent alert found, we should send email
-        return recent_alert is None
-
-    except Exception as e:
-        print(f"Error checking cooldown: {e}")
-        # If error checking, send email anyway (fail-safe)
-        return True
+    # except Exception as e:
+    #     print(f"Error checking cooldown: {e}")
+    #     # If error checking, send email anyway (fail-safe)
+    #     return True
 
 
 @app.route('/log-alert-event', methods=['POST'])
@@ -127,25 +136,28 @@ def log_alert_event():
         }
         result = event_log.insert_one(document)
 
-        # Check if we should send email (cooldown check)
-        if should_send_email(user_id, fence_name):
-            # Send email in background thread (non-blocking)
-            email_thread = Thread(
-                target=send_email_async,
-                args=(fence_name, user_id),
-                daemon=True  # Thread will close when main program exits
+        try:
+            mail = mt.Mail(
+                sender=mt.Address(email=sender, name="Test"),
+                to=[mt.Address(email="10johannesmunoz@gmail.com")],
+                subject="Geofence Breached",
+                text=f"You are inside {fence_name}",
+                category="Test"
             )
-            email_thread.start()
-            message = "Alert logged, email being sent"
-        else:
-            message = "Alert logged, email skipped (cooldown active)"
-            print(f"⏸ Email skipped for {user_id} in {fence_name} (cooldown)")
+
+            client = mt.MailtrapClient(token=token)
+            response = client.send(mail)
+
+            print(f"✓ Success! Response: {response}")
+
+        except Exception as e:
+            print(f"✗ Error: {e}")
 
         # Return immediately without waiting for email
         return jsonify({
             "success": True,
             "id": str(result.inserted_id),
-            "message": message
+            "message": "Success"
         }), 200
 
     except Exception as e:
