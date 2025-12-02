@@ -1,54 +1,184 @@
-import os
+from flask import Flask, request, jsonify
+from pymongo import MongoClient
+from flask_cors import CORS
 from dotenv import load_dotenv
-import mailtrap as mt
+
+from handlers.email_handler import EmailManager
+from handlers.weather_handler import WeatherHandler
+from threading import Thread
+from datetime import datetime, timedelta, timezone
+import traceback
+import os
 
 load_dotenv()
 
+app = Flask(__name__)
+weather_info = WeatherHandler()
 
-class EmailManager:
-    def __init__(self):
-        # Mailtrap API settings
-        self.__api_token = os.getenv("MAILTRAP_API_TOKEN")
+CORS(app)  # Enable CORS for browser requests
 
-        # Email settings
-        self.__sender_email = os.getenv("SENDER_EMAIL", "hello@demomailtrap.com")
-        self.__sender_name = os.getenv("SENDER_NAME", "Geofence Alert System")
-        self.__receiver_email = "carljohannesllarenas.munoz24@bicol-u.edu.ph"
-        self.__message_text = None
+# Fixed MongoDB connection with TLS certificate validation bypass
+try:
+    client = MongoClient(
+        os.getenv("MONGODB_URI"),
+        tlsAllowInvalidCertificates=True
+    )
+    # Test the connection
+    client.admin.command('ping')
+    print("✓ MongoDB connection successful!")
+except Exception as e:
+    print(f"✗ MongoDB connection failed: {e}")
+    raise
 
-        # Validate credentials
-        if not self.__api_token:
-            raise ValueError("MAILTRAP_API_TOKEN must be set in environment variables")
+geo_db = client[os.getenv("MONGODB_DATABASE")]
+user_trail = geo_db[os.getenv("MONGODB_COLLECTION")]
+event_log = geo_db[os.getenv("EVENT_LOG")]
+drawn_shapes = geo_db.shapes
 
-        # Initialize Mailtrap client
-        self.__client = mt.MailtrapClient(token=self.__api_token)
 
-    def create_message(self, text):
-        """Create email message"""
-        self.__message_text = text
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "message": "Flask Geofencing API",
+        "status": "running",
+        "endpoints": [
+            "/save-tracking (POST)",
+            "/log-alert-event (POST)",
+            "/health (GET)"
+        ]
+    })
 
-    def send_alert_email(self):
-        """Send email using Mailtrap API"""
-        if not self.__message_text:
-            raise ValueError("No message created. Call create_message() first.")
 
-        try:
-            # Create mail object
-            mail = mt.Mail(
-                sender=mt.Address(email=self.__sender_email, name=self.__sender_name),
-                to=[mt.Address(email=self.__receiver_email)],
-                subject="🚨 Geofence Alert",
-                text=self.__message_text,
-                category="Geofence Alerts"
+@app.route('/save-tracking', methods=['POST'])
+def save_tracking():
+    data = request.json
+    document = {
+        "type": data['type'],
+        "properties": data['properties'],
+        "geometry": data['geometry']
+    }
+    result = user_trail.insert_one(document)
+    return jsonify({"success": True, "id": str(result.inserted_id)})
+
+
+def send_email_async(fence_name, user_id):
+    """Send email in background thread"""
+    try:
+        email_manager = EmailManager()
+        email_manager.create_message(
+            f"Alert: User {user_id} has entered the geofence '{fence_name}'.\n\n"
+            f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n"
+            f"Fence: {fence_name}"
+        )
+
+        success = email_manager.send_alert_email()
+        if success:
+            print(f"✓ Email sent successfully for fence '{fence_name}'")
+        else:
+            print(f"✗ Email failed to send for fence '{fence_name}'")
+
+    except Exception as e:
+        print(f"✗ Email sending failed: {e}")
+        traceback.print_exc()
+
+
+def should_send_email(user_id, fence_name, cooldown_minutes=5):
+    """
+    Check if we should send an email based on cooldown period.
+    Prevents spam if user enters same fence multiple times quickly.
+    """
+    try:
+        # Look for recent alerts from this user in this fence
+        cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=cooldown_minutes)
+
+        recent_alert = event_log.find_one({
+            "user_id": user_id,
+            "fence_name": fence_name,
+            "time_stamp": {"$gte": cooldown_time.isoformat()}
+        })
+
+        # If no recent alert found, we should send email
+        return recent_alert is None
+
+    except Exception as e:
+        print(f"Error checking cooldown: {e}")
+        # If error checking, send email anyway (fail-safe)
+        return True
+
+
+@app.route('/log-alert-event', methods=['POST'])
+def log_alert_event():
+    try:
+        data = request.json
+
+        # Validate input
+        if not data or 'userId' not in data or 'fenceName' not in data:
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+
+        user_id = data['userId']
+        fence_name = data['fenceName']
+        timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
+
+        # Save to database first
+        document = {
+            "user_id": user_id,
+            "time_stamp": timestamp,
+            "fence_name": fence_name
+        }
+        result = event_log.insert_one(document)
+
+        # Check if we should send email (cooldown check)
+        if should_send_email(user_id, fence_name):
+            # Send email in background thread (non-blocking)
+            email_thread = Thread(
+                target=send_email_async,
+                args=(fence_name, user_id),
+                daemon=True  # Thread will close when main program exits
             )
+            email_thread.start()
+            message = "Alert logged, email being sent"
+        else:
+            message = "Alert logged, email skipped (cooldown active)"
+            print(f"⏸ Email skipped for {user_id} in {fence_name} (cooldown)")
 
-            # Send email
-            response = self.__client.send(mail)
+        # Return immediately without waiting for email
+        return jsonify({
+            "success": True,
+            "id": str(result.inserted_id),
+            "message": message
+        }), 200
 
-            print(f"✓ Email sent successfully to {self.__receiver_email}")
-            print(f"Response: {response}")
-            return True
+    except Exception as e:
+        print(f"Error in log_alert_event: {e}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
-        except Exception as e:
-            print(f"✗ Failed to send email: {type(e).__name__}: {e}")
-            return False
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint for Railway"""
+    try:
+        # Test MongoDB connection
+        client.admin.command('ping')
+        return jsonify({
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 500
+
+
+if __name__ == '__main__':
+    try:
+        # Use 0.0.0.0 to allow external connections (required for Railway)
+        # Railway provides PORT env variable
+        port = int(os.getenv("PORT", 5000))
+        app.run(host="0.0.0.0", port=port)
+    finally:
+        # Ensure the MongoDB connection is closed properly
+        client.close()
+        print("MongoDB connection closed")
