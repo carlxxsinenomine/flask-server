@@ -16,6 +16,11 @@ class EmailManager:
         self.__receiver_email = "carljohannesllarenas.munoz24@bicol-u.edu.ph"
         self.__message_text = None
 
+        # DEBUG: Print configuration (remove in production)
+        print(f"DEBUG: API Token exists: {bool(self.__api_token)}")
+        print(f"DEBUG: Sender Email: {self.__sender_email}")
+        print(f"DEBUG: Receiver Email: {self.__receiver_email}")
+
         # Validate credentials
         if not self.__api_token:
             raise ValueError("MAILTRAP_API_TOKEN must be set in environment variables")
@@ -42,6 +47,8 @@ class EmailManager:
                 category="Geofence Alerts"
             )
 
+            print(f"DEBUG: Attempting to send email...")
+
             # Send email
             response = self.__client.send(mail)
 
@@ -51,4 +58,6 @@ class EmailManager:
 
         except Exception as e:
             print(f"✗ Failed to send email: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
