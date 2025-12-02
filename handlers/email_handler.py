@@ -1,33 +1,63 @@
 import os
 from dotenv import load_dotenv
-import mailtrap as mt
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
 load_dotenv()
 
-# Debug: Check if .env is loaded
-token = os.getenv("MAILTRAP_API_TOKEN")
-sender = os.getenv("SENDER_EMAIL", "hello@demomailtrap.co")
 
-print(f"Token exists: {bool(token)}")
-print(f"Token: {token}")
-print(f"Sender: {sender}")
+class EmailManager:
+    def __init__(self):
+        # Brevo API settings
+        self.__api_key = os.getenv("BREVO_API_KEY")
 
-try:
-    mail = mt.Mail(
-        sender=mt.Address(email=sender, name="Test"),
-        to=[mt.Address(email="10johannesmunoz@gmail.com")],
-        subject="Test Email from .env",
-        text="This is a test email using environment variables!",
-        category="Test"
-    )
+        # Email settings
+        self.__sender_email = os.getenv("SENDER_EMAIL")
+        self.__sender_name = os.getenv("SENDER_NAME", "Geofence Alert System")
+        self.__receiver_email = "carljohannesllarenas.munoz24@bicol-u.edu.ph"
+        self.__message_text = None
 
-    client = mt.MailtrapClient(token=token)
-    response = client.send(mail)
+        # Validate credentials
+        if not self.__api_key:
+            raise ValueError("BREVO_API_KEY must be set in environment variables")
+        if not self.__sender_email:
+            raise ValueError("SENDER_EMAIL must be set in environment variables")
 
-    print(f"✓ Success! Response: {response}")
+        # Configure Brevo API
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = self.__api_key
+        self.__api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
+            sib_api_v3_sdk.ApiClient(configuration)
+        )
 
-except Exception as e:
-    print(f"✗ Error: {e}")
-    import traceback
+    def create_message(self, text):
+        """Create email message"""
+        self.__message_text = text
 
-    traceback.print_exc()
+    def send_alert_email(self):
+        """Send email using Brevo API"""
+        if not self.__message_text:
+            raise ValueError("No message created. Call create_message() first.")
+
+        try:
+            # Create email object
+            send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
+                to=[{"email": self.__receiver_email}],
+                sender={"name": self.__sender_name, "email": self.__sender_email},
+                subject="🚨 Geofence Alert",
+                text_content=self.__message_text
+            )
+
+            # Send email
+            api_response = self.__api_instance.send_transac_email(send_smtp_email)
+
+            print(f"✓ Email sent successfully to {self.__receiver_email}")
+            print(f"Message ID: {api_response.message_id}")
+            return True
+
+        except ApiException as e:
+            print(f"✗ Brevo API error: {e}")
+            return False
+        except Exception as e:
+            print(f"✗ Failed to send email: {type(e).__name__}: {e}")
+            return False
