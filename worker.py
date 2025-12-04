@@ -103,14 +103,14 @@ def fence_activation():
 
 
 if __name__ == '__main__':
-    print("Worker started - Running fence activation every minute (TESTING MODE)")
+    print("Worker started - Running fence activation every hour (TESTING MODE)")
 
-    schedule.every(1).hours.do(fence_activation)
+    schedule.every(1).minute.do(fence_activation)
 
     # Run immediately on startup
-    fence_activation()
+    # fence_activation()
 
     # Keep the worker running
     while True:
         schedule.run_pending()
-        time.sleep(60)  # Check every 10 seconds
+        time.sleep(10)  # Check every 60 seconds

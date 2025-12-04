@@ -178,3 +178,7 @@ class PanahonScraper:
             dropdown.select_by_index(index=index)
         except Exception as e:
             print(f"   ⚠️ Error selecting type: {e}")
+
+w = PanahonScraper()
+w.start_scraping('Legaspi')
+print(w.get_data())

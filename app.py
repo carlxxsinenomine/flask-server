@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
+from web_scaper.PanahonScraper import PanahonScraper
 from threading import Thread
 from datetime import datetime, timedelta, timezone
 import traceback
@@ -44,9 +45,59 @@ def home():
         "endpoints": [
             "/save-tracking (POST)",
             "/log-alert-event (POST)",
+            "/get-weather-alerts (GET)",
             "/health (GET)"
         ]
     })
+
+
+@app.route('/get-weather-alerts', methods=['GET'])
+def get_weather_alerts():
+    """
+    GET endpoint to scrape weather alerts from Panahon.gov.ph
+    Query parameter: location (required)
+    Example: /get-weather-alerts?location=Naga
+    """
+    try:
+        # Get location from query parameters
+        location = request.args.get('location')
+
+        if not location:
+            return jsonify({
+                "success": False,
+                "error": "Location parameter is required"
+            }), 400
+
+        print(f"🌤️ Fetching weather alerts for: {location}")
+
+        # Initialize scraper and get data
+        scraper = PanahonScraper()
+        scraper.start_scraping(location)
+        weather_data = scraper.get_data()
+
+        # Format response
+        response = {
+            "success": True,
+            "location": location,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "alerts": {
+                "rainfall": weather_data.get('Rainfall'),
+                "thunderstorm": weather_data.get('Thunderstorm'),
+                "flood": weather_data.get('Flood'),
+                "tropical": weather_data.get('Tropical')
+            }
+        }
+
+        print(f"✅ Weather data retrieved successfully for {location}")
+        return jsonify(response), 200
+
+    except Exception as e:
+        print(f"❌ Error fetching weather alerts: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route('/save-tracking', methods=['POST'])
