@@ -37,42 +37,80 @@ class PanahonScraper:
         self.__chrome_options.add_experimental_option('useAutomationExtension', False)
 
         try:
-            # Check for system Chrome/Chromium locations
+            # Detect environment and set Chrome paths
+            # Railway typically uses Nix packages which install to /nix/store
+            import subprocess
+
+            # Check for Chromium (Railway/Nix installation)
             chrome_paths = [
-                "/usr/bin/chromium",  # Railway/Linux Chromium
+                "/nix/store/*/bin/chromium",  # Railway Nix
+                "/usr/bin/chromium",  # Standard Linux
                 "/usr/bin/chromium-browser",
                 "/usr/bin/google-chrome",
                 "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"  # Windows
             ]
 
             chromedriver_paths = [
-                "/usr/bin/chromedriver",  # Railway/Linux
-                "/root/.wdm/drivers/chromedriver/linux64/114.0.5735.90/chromedriver"
+                "/nix/store/*/bin/chromedriver",  # Railway Nix
+                "/usr/bin/chromedriver",  # Standard Linux
             ]
 
-            # Find Chrome binary
+            # Try to find Chrome using 'which' command on Linux
             chrome_binary = None
-            for path in chrome_paths:
-                if os.path.exists(path):
-                    chrome_binary = path
-                    print(f"✅ Found Chrome at: {path}")
-                    break
+            try:
+                result = subprocess.run(['which', 'chromium'],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5)
+                if result.returncode == 0:
+                    chrome_binary = result.stdout.strip()
+                    print(f"✅ Found Chrome via 'which': {chrome_binary}")
+            except:
+                pass
+
+            # Manual path search if 'which' didn't work
+            if not chrome_binary:
+                import glob
+                for pattern in chrome_paths:
+                    matches = glob.glob(pattern)
+                    if matches:
+                        chrome_binary = matches[0]
+                        print(f"✅ Found Chrome at: {chrome_binary}")
+                        break
 
             if chrome_binary:
                 self.__chrome_options.binary_location = chrome_binary
+            else:
+                print("⚠️ Chrome binary not found, using default")
 
-            # Try to find existing chromedriver
+            # Try to find chromedriver
             driver_path = None
-            for path in chromedriver_paths:
-                if os.path.exists(path):
-                    driver_path = path
-                    print(f"✅ Found ChromeDriver at: {path}")
-                    break
+            try:
+                result = subprocess.run(['which', 'chromedriver'],
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5)
+                if result.returncode == 0:
+                    driver_path = result.stdout.strip()
+                    print(f"✅ Found ChromeDriver via 'which': {driver_path}")
+            except:
+                pass
+
+            # Manual path search if 'which' didn't work
+            if not driver_path:
+                import glob
+                for pattern in chromedriver_paths:
+                    matches = glob.glob(pattern)
+                    if matches:
+                        driver_path = matches[0]
+                        print(f"✅ Found ChromeDriver at: {driver_path}")
+                        break
 
             # Initialize driver
             if driver_path:
                 service = Service(executable_path=driver_path)
                 self.__driver = webdriver.Chrome(service=service, options=self.__chrome_options)
+                print("✅ Chrome driver initialized with custom path")
             else:
                 # Fallback: let selenium find it
                 print("⚠️ Using default ChromeDriver path")
