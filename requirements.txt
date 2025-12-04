@@ -1,6 +1,3 @@
-mailtrap
-selenium
-webdriver-manager
 requests
 flask
 pymongo
@@ -8,3 +5,5 @@ flask-cors
 python-dotenv
 schedule
 sib-api-v3-sdk
+selenium
+webdriver-manager

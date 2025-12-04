@@ -7,9 +7,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
 import time
+import os
 
 
 class PanahonScraper:
@@ -20,7 +19,8 @@ class PanahonScraper:
         self.__data = {}
 
     def __setup_driver(self):
-        """Initialize Chrome driver with proper options"""
+        """Initialize Chrome driver with proper options for cloud deployment"""
+        # Add comprehensive Chrome options for cloud environments
         self.__chrome_options.add_argument("--headless=new")
         self.__chrome_options.add_argument("--window-size=1920,1080")
         self.__chrome_options.add_argument("--no-sandbox")
@@ -31,33 +31,60 @@ class PanahonScraper:
         self.__chrome_options.add_argument("--disable-background-timer-throttling")
         self.__chrome_options.add_argument("--disable-backgrounding-occluded-windows")
         self.__chrome_options.add_argument("--disable-renderer-backgrounding")
+        self.__chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        self.__chrome_options.add_argument("--single-process")  # Important for Railway
         self.__chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         self.__chrome_options.add_experimental_option('useAutomationExtension', False)
 
         try:
-            # For local Windows: use regular Chrome
-            # For Streamlit Cloud: use CHROMIUM
-            import platform
-            import os
+            # Check for system Chrome/Chromium locations
+            chrome_paths = [
+                "/usr/bin/chromium",  # Railway/Linux Chromium
+                "/usr/bin/chromium-browser",
+                "/usr/bin/google-chrome",
+                "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"  # Windows
+            ]
 
-            if platform.system() == "Windows" or os.path.exists(
-                    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"):
-                # Local development - use regular Chrome
-                print("🖥️ Running on Windows - using Chrome")
-                service = Service(ChromeDriverManager().install())
+            chromedriver_paths = [
+                "/usr/bin/chromedriver",  # Railway/Linux
+                "/root/.wdm/drivers/chromedriver/linux64/114.0.5735.90/chromedriver"
+            ]
+
+            # Find Chrome binary
+            chrome_binary = None
+            for path in chrome_paths:
+                if os.path.exists(path):
+                    chrome_binary = path
+                    print(f"✅ Found Chrome at: {path}")
+                    break
+
+            if chrome_binary:
+                self.__chrome_options.binary_location = chrome_binary
+
+            # Try to find existing chromedriver
+            driver_path = None
+            for path in chromedriver_paths:
+                if os.path.exists(path):
+                    driver_path = path
+                    print(f"✅ Found ChromeDriver at: {path}")
+                    break
+
+            # Initialize driver
+            if driver_path:
+                service = Service(executable_path=driver_path)
+                self.__driver = webdriver.Chrome(service=service, options=self.__chrome_options)
             else:
-                # Streamlit Cloud - use Chromium
-                print("☁️ Running on cloud - using Chromium")
-                service = Service(
-                    ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
-                )
+                # Fallback: let selenium find it
+                print("⚠️ Using default ChromeDriver path")
+                self.__driver = webdriver.Chrome(options=self.__chrome_options)
 
-            self.__driver = webdriver.Chrome(service=service, options=self.__chrome_options)
             print("✅ Chrome driver initialized successfully")
             return True
 
         except Exception as e:
             print(f"❌ Error setting up Chrome driver: {e}")
+            import traceback
+            traceback.print_exc()
             self.__driver = None
             return False
 
@@ -178,7 +205,3 @@ class PanahonScraper:
             dropdown.select_by_index(index=index)
         except Exception as e:
             print(f"   ⚠️ Error selecting type: {e}")
-
-w = PanahonScraper()
-w.start_scraping('Legaspi')
-print(w.get_data())
