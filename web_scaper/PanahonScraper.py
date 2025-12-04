@@ -1,185 +1,89 @@
-from selenium import webdriver
-from selenium.common import TimeoutException
-from selenium.webdriver import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+"""
+Alternative implementation using Playwright (more cloud-friendly)
+
+Installation:
+pip install playwright
+playwright install chromium
+
+Add to nixpacks.toml:
+[phases.setup]
+nixPkgs = ["chromium"]
+
+[phases.install]
+cmds = [
+    "pip install -r requirements.txt",
+    "playwright install-deps chromium"
+]
+"""
+
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 import time
-import os
 
 
-class PanahonScraper:
+class PanahonScraperPlaywright:
     def __init__(self):
         self.__panahon_url = "https://www.panahon.gov.ph/"
-        self.__chrome_options = Options()
-        self.__driver = None
         self.__data = {}
-
-    def __setup_driver(self):
-        """Initialize Chrome driver with proper options for cloud deployment"""
-        # Add comprehensive Chrome options for cloud environments
-        self.__chrome_options.add_argument("--headless=new")
-        self.__chrome_options.add_argument("--window-size=1920,1080")
-        self.__chrome_options.add_argument("--no-sandbox")
-        self.__chrome_options.add_argument("--disable-dev-shm-usage")
-        self.__chrome_options.add_argument("--disable-gpu")
-        self.__chrome_options.add_argument("--disable-extensions")
-        self.__chrome_options.add_argument("--disable-software-rasterizer")
-        self.__chrome_options.add_argument("--disable-background-timer-throttling")
-        self.__chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-        self.__chrome_options.add_argument("--disable-renderer-backgrounding")
-        self.__chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        self.__chrome_options.add_argument("--single-process")  # Important for Railway
-        self.__chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        self.__chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        try:
-            # Detect environment and set Chrome paths
-            # Railway typically uses Nix packages which install to /nix/store
-            import subprocess
-
-            # Check for Chromium (Railway/Nix installation)
-            chrome_paths = [
-                "/nix/store/*/bin/chromium",  # Railway Nix
-                "/usr/bin/chromium",  # Standard Linux
-                "/usr/bin/chromium-browser",
-                "/usr/bin/google-chrome",
-                "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"  # Windows
-            ]
-
-            chromedriver_paths = [
-                "/nix/store/*/bin/chromedriver",  # Railway Nix
-                "/usr/bin/chromedriver",  # Standard Linux
-            ]
-
-            # Try to find Chrome using 'which' command on Linux
-            chrome_binary = None
-            try:
-                result = subprocess.run(['which', 'chromium'],
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=5)
-                if result.returncode == 0:
-                    chrome_binary = result.stdout.strip()
-                    print(f"✅ Found Chrome via 'which': {chrome_binary}")
-            except:
-                pass
-
-            # Manual path search if 'which' didn't work
-            if not chrome_binary:
-                import glob
-                for pattern in chrome_paths:
-                    matches = glob.glob(pattern)
-                    if matches:
-                        chrome_binary = matches[0]
-                        print(f"✅ Found Chrome at: {chrome_binary}")
-                        break
-
-            if chrome_binary:
-                self.__chrome_options.binary_location = chrome_binary
-            else:
-                print("⚠️ Chrome binary not found, using default")
-
-            # Try to find chromedriver
-            driver_path = None
-            try:
-                result = subprocess.run(['which', 'chromedriver'],
-                                        capture_output=True,
-                                        text=True,
-                                        timeout=5)
-                if result.returncode == 0:
-                    driver_path = result.stdout.strip()
-                    print(f"✅ Found ChromeDriver via 'which': {driver_path}")
-            except:
-                pass
-
-            # Manual path search if 'which' didn't work
-            if not driver_path:
-                import glob
-                for pattern in chromedriver_paths:
-                    matches = glob.glob(pattern)
-                    if matches:
-                        driver_path = matches[0]
-                        print(f"✅ Found ChromeDriver at: {driver_path}")
-                        break
-
-            # Initialize driver
-            if driver_path:
-                service = Service(executable_path=driver_path)
-                self.__driver = webdriver.Chrome(service=service, options=self.__chrome_options)
-                print("✅ Chrome driver initialized with custom path")
-            else:
-                # Fallback: let selenium find it
-                print("⚠️ Using default ChromeDriver path")
-                self.__driver = webdriver.Chrome(options=self.__chrome_options)
-
-            print("✅ Chrome driver initialized successfully")
-            return True
-
-        except Exception as e:
-            print(f"❌ Error setting up Chrome driver: {e}")
-            import traceback
-            traceback.print_exc()
-            self.__driver = None
-            return False
 
     def start_scraping(self, location):
         try:
-            # Initialize driver
-            if not self.__setup_driver():
-                print("Failed to initialize Chrome driver")
-                return
+            with sync_playwright() as p:
+                print("🚀 Launching browser...")
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--single-process'
+                    ]
+                )
 
-            print(f"🌐 Navigating to {self.__panahon_url}")
-            self.__driver.get(self.__panahon_url)
+                page = browser.new_page()
 
-            WebDriverWait(self.__driver, 15).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
-            print("✅ Page loaded")
+                print(f"🌐 Navigating to {self.__panahon_url}")
+                page.goto(self.__panahon_url, wait_until="domcontentloaded")
+                page.wait_for_selector("body", timeout=15000)
+                print("✅ Page loaded")
 
-            # Open Notification
-            print("🔔 Clicking notification button...")
-            notification_button = WebDriverWait(self.__driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "button.notification-button"))
-            )
-            notification_button.click()
+                # Click notification button
+                print("🔔 Clicking notification button...")
+                page.click("button.notification-button")
 
-            # Show button
-            show_button = WebDriverWait(self.__driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "showSelectedAlertBtn"))
-            )
-            names = ['Rainfall', 'Thunderstorm', 'Flood', 'Tropical']
+                # Wait for show button
+                page.wait_for_selector("#showSelectedAlertBtn", timeout=10000)
 
-            for i in range(4):
-                print(f"\n📊 Processing {names[i]}...")
-                self.__select_type(index=i)
-                show_button.click()
-                time.sleep(2)
-                self.__search_place(location)
+                names = ['Rainfall', 'Thunderstorm', 'Flood', 'Tropical']
 
-                content = self.__wait_and_extract_content()
-                self.__data[names[i]] = content
-                print(f"   Result: {'✅ Found' if content else '❌ None'}")
+                for i in range(4):
+                    print(f"\n📊 Processing {names[i]}...")
 
-            print(f"\n✅ Scraping complete!")
+                    # Select alert type
+                    page.select_option("#alertTypeSelect", index=i)
+
+                    # Click show button
+                    page.click("#showSelectedAlertBtn")
+                    time.sleep(2)
+
+                    # Search for location
+                    search_input = page.locator("input[placeholder*='Search'], input[type='search']")
+                    search_input.clear()
+                    search_input.fill(location)
+                    search_input.press("Enter")
+                    time.sleep(3)
+
+                    # Extract content
+                    content = self.__wait_and_extract_content(page)
+                    self.__data[names[i]] = content
+                    print(f"   Result: {'✅ Found' if content else '❌ None'}")
+
+                print(f"\n✅ Scraping complete!")
+                browser.close()
 
         except Exception as e:
             print(f"❌ Error during scraping: {str(e)}")
             import traceback
             traceback.print_exc()
-
-        finally:
-            # Only quit if driver was successfully initialized
-            if self.__driver is not None:
-                try:
-                    self.__driver.quit()
-                    print("🔒 Browser closed")
-                except Exception as e:
-                    print(f"⚠️ Error closing driver: {e}")
 
     def get_data(self):
         """Return scraped data or empty structure if failed"""
@@ -192,54 +96,29 @@ class PanahonScraper:
             }
         return self.__data
 
-    def __wait_and_extract_content(self, timeout=15):
+    def __wait_and_extract_content(self, page, timeout=15000):
         try:
-            # Wait for popup to be visible
             time.sleep(2)
 
-            popup = WebDriverWait(self.__driver, timeout).until(
-                EC.visibility_of_element_located((By.CLASS_NAME, "ol-popup-content"))
-            )
+            # Wait for popup to be visible
+            page.wait_for_selector(".ol-popup-content", state="visible", timeout=timeout)
 
-            # Wait for content to be loaded
-            def content_loaded(driver):
-                try:
-                    popup_element = driver.find_element(By.CLASS_NAME, "ol-popup-content")
-                    text = popup_element.text.strip()
-                    return len(text) > 0 and text != "Loading..."
-                except:
-                    return False
+            # Wait for content to load
+            popup = page.locator(".ol-popup-content")
 
-            WebDriverWait(self.__driver, timeout).until(content_loaded)
+            # Wait until content is not "Loading..."
+            max_attempts = 15
+            for _ in range(max_attempts):
+                content = popup.inner_text()
+                if content and content.strip() and content.strip() != "Loading...":
+                    return content
+                time.sleep(1)
 
-            content = popup.text
-            return content if content else None
+            return None
 
-        except TimeoutException:
+        except PlaywrightTimeout:
             print("   ⏱️ Timeout: Content didn't load")
             return None
         except Exception as e:
             print(f"   ⚠️ Error extracting content: {e}")
             return None
-
-    def __search_place(self, location_name):
-        try:
-            search_input = WebDriverWait(self.__driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "input[placeholder*='Search'], input[type='search']"))
-            )
-
-            search_input.clear()
-            search_input.send_keys(location_name)
-            search_input.send_keys(Keys.ENTER)
-
-            time.sleep(3)
-        except Exception as e:
-            print(f"   ⚠️ Error searching place: {e}")
-
-    def __select_type(self, index=None):
-        try:
-            select_element = self.__driver.find_element(By.ID, "alertTypeSelect")
-            dropdown = Select(select_element)
-            dropdown.select_by_index(index=index)
-        except Exception as e:
-            print(f"   ⚠️ Error selecting type: {e}")

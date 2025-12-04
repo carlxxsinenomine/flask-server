@@ -10,7 +10,7 @@
 import requests
 import os
 from dotenv import load_dotenv
-from web_scaper.PanahonScraper import PanahonScraper
+from web_scaper.PanahonScraper import PanahonScraperPlaywright as PanahonScraper
 
 load_dotenv()
 

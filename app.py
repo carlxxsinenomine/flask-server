@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from handlers.email_handler import EmailManager
 from handlers.weather_handler import WeatherHandler
-from web_scaper.PanahonScraper import PanahonScraper
+from web_scaper.PanahonScraper import PanahonScraperPlaywright as PanahonScraper
 from threading import Thread
 from datetime import datetime, timedelta, timezone
 import traceback
